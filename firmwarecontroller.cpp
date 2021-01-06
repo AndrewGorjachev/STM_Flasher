@@ -1,15 +1,26 @@
 #include "firmwarecontroller.h"
 
-
 FirmwareController::FirmwareController(QObject *parent) : QObject(parent)
 {
+    connectionStatus = "Not Connected";
 
+    checkConnectTimer = new QTimer();
+
+    checkConnectTimer->setInterval(1000);
+
+    connect(checkConnectTimer, &QTimer::timeout, this, &FirmwareController::readMCUID);
 }
 
 FirmwareController::~FirmwareController()
 {
+    checkConnectTimer->stop();
+
+    delete checkConnectTimer;
+
     if (serialPort!=nullptr)
     {
+        serialPort->close();
+
         delete serialPort;
     }
 }
@@ -37,57 +48,57 @@ int FirmwareController::openPort(const QString &portName)
 
     serialPort -> setDataBits(QSerialPort::Data8);
 
-    serialPort -> setParity(QSerialPort::NoParity);
+    serialPort -> setParity(QSerialPort::EvenParity);
 
     serialPort -> setStopBits(QSerialPort::OneStop);
 
     serialPort -> setFlowControl(QSerialPort::NoFlowControl);
 
-
     connect(serialPort, &QSerialPort::errorOccurred, this, &FirmwareController::portError);
 
     if (serialPort -> open(QIODevice::ReadWrite)) {
 
-        char buff(0x7F);
+        char buff(0x7F);  // Connect command
 
         serialPort->write(&buff, 1);
 
-        serialPort->waitForBytesWritten(100);
+        serialPort->flush();
 
         if (checkAck()){
 
-            connect(serialPort, &QSerialPort::readyRead, this, &FirmwareController::incomeDataProcessing);
+            setConnectionStatus("Connected");
+
+            connect(serialPort, &QSerialPort::readyRead, this, &FirmwareController::serialPortCallBack);
+
+            checkConnectTimer->start();
 
             return 0;
 
         } else {
 
+            setConnectionStatus("Connection Error");
+
             closePort();
 
             return 1;
-
-            qDebug() << "Open port error!!!!!!!!!";
-
         }
     } else {
 
-        return 1;
+        setConnectionStatus("Port Open Error");
 
-        qDebug() << "Open port error!";
+        return 1;
     }
 }
 
 bool FirmwareController::checkAck()
 {
-    char buff;
+    QByteArray buff;
 
-    if(serialPort->waitForReadyRead(50)){
+    if(serialPort->waitForReadyRead(1)){
 
-        serialPort->read(&buff, 1);
+        buff = serialPort->read(1);
 
-        qDebug()<< buff;
-
-        if(buff == 0x79){
+        if(buff.at(0) == 0x79){
 
             return true;
 
@@ -96,31 +107,26 @@ bool FirmwareController::checkAck()
             return false;
         }
     } else {
+
         qDebug()<< "Serial port timeout";
 
         return false;
     }
 }
 
-
-
-
-
-
 void FirmwareController::closePort()
 {
+    emit portClosed();
+
+    setConnectionStatus("Not Connected");
+
+    checkConnectTimer->stop();
+
     serialPort->close();
 
     delete serialPort;
 
     serialPort = nullptr;
-}
-
-void FirmwareController::incomeDataProcessing()
-{
-    const QByteArray incomingData = serialPort->readAll();
-
-    qDebug()<<incomingData;
 }
 
 void FirmwareController::portError(QSerialPort::SerialPortError error)
@@ -133,5 +139,84 @@ void FirmwareController::portError(QSerialPort::SerialPortError error)
 
 void FirmwareController::readFirmwareFile(const QString &pathToFile)
 {
+    dataPath = new QString(pathToFile);
+
+    if(QSysInfo::productType()=="windows")
+    {
+        dataPath -> remove("file:///");
+
+    } else {
+
+        dataPath -> remove("file://");
+    }
+}
+
+void FirmwareController::backUpFirmware(const QString &pathToFile)
+{
+    qDebug()<< pathToFile;
+}
+
+void FirmwareController::flashFirmware()
+{
+    qDebug()<< *dataPath;
+}
+
+void FirmwareController::readMCUID()
+{
+    serialPort->clear();
+
+    readIdFlg = true;
+
+    serialPort->write(pidCommand, 2);
+
+    serialPort->flush();
+}
+
+QString FirmwareController::getConnectionStatus() const
+{
+    return connectionStatus;
+}
+
+void FirmwareController::setConnectionStatus(const QString &value)
+{
+    if(value != connectionStatus)
+    {
+        connectionStatus = value;
+
+        emit connectionStatusChanged();
+    }
+}
+
+void FirmwareController::serialPortCallBack()
+{
+    if (readIdFlg){
+
+        if (serialPort->bytesAvailable() < 5)
+        {
+            return;
+
+        } else {
+
+            QByteArray buff;
+
+            buff = serialPort->read(5);
+
+            if((buff.at(0) == 'y')  &&
+               (buff.at(1) == 0x01) &&
+               (buff.at(2) == 0x04) &&
+               (buff.at(3) == 'i')  &&
+               (buff.at(4) == 'y'))
+            {
+                readIdFlg = false;
+
+            } else {
+
+                readIdFlg = false;
+
+                closePort();
+            }
+        }
+    }
+
 
 }

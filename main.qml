@@ -9,7 +9,7 @@ Window {
     title: qsTr("STM_Flasher")
     visible: true
     width: 300
-    height: 200
+    height: 220
 
     ColumnLayout {
         id: columnLayout
@@ -44,7 +44,6 @@ Window {
 
                     } else {
 
-
                         serialOpenErrorDialog.open();
                     }
                 }
@@ -62,7 +61,6 @@ Window {
                 }
             }
         }
-
         Button {
             id: choseFirmware
             text: qsTr("Chose Firmware")
@@ -70,8 +68,7 @@ Window {
             Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
             onClicked: {
 
-
-
+                openFileDialog.open();
             }
         }
 
@@ -83,9 +80,9 @@ Window {
             Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
             onClicked: {
 
+                firmwareController.flashFirmwareFile();
             }
         }
-
         Button {
             id: backUpFirmware
             implicitWidth: serialPortChose.width
@@ -94,6 +91,7 @@ Window {
             Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
             onClicked: {
 
+                saveBackUpDialog.open();
             }
         }
 
@@ -102,6 +100,24 @@ Window {
             Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
             Layout.fillWidth: true
             value: 0
+        }
+
+        RowLayout {
+            Layout.fillHeight: false
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+
+            Label {
+                id: statusLabel
+                text: "Status: "
+                Layout.fillWidth: false
+            }
+
+            Label {
+                id: connectionStatusLabel
+                text: firmwareController.connectionStatus
+                Layout.fillWidth: true
+            }
         }
     }
 
@@ -114,7 +130,6 @@ Window {
         flashFirmware.enabled = false;
         backUpFirmware.enabled = false;
     }
-
 
     function enableComponents()
     {
@@ -131,22 +146,44 @@ Window {
         disableComponents();
     }
 
+    Connections{
+
+        target: firmwareController;
+
+        onPortClosed:{
+
+            disableComponents();
+        }
+    }
 
     FileDialog {
         id: openFileDialog
+        title: "Please choose a folder"
+        folder: shortcuts.home
+        onAccepted: {
+
+            firmwareController.readFirmwareFile(openFileDialog.fileUrl)
+        }
+        onRejected: {
+
+            console.log("Open FW file has been canceled")
+        }
+    }
+
+    FileDialog {
+        id: saveBackUpDialog
         title: "Please choose a folder"
         selectFolder: true
         folder: shortcuts.home
         onAccepted: {
 
-            firmwareController.readFirmwareFile(openFile.fileUrls)
+            firmwareController.backUpFirmware(saveBackUpDialog.fileUrls)
         }
         onRejected: {
 
-            console.log("Canceled")
+            console.log("Saving FW BackUp file has been canceled")
         }
     }
-
 
     MessageDialog{
         id: serialOpenErrorDialog
@@ -156,6 +193,4 @@ Window {
         standardButtons: StandardButton.Ok
         modality: Qt.WindowModal
     }
-
-
 }

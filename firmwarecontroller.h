@@ -19,11 +19,16 @@ class FirmwareController : public QObject
 
 private:
 
-    const char pidCommand[2] = {static_cast<char>(0x02), static_cast<char>(0xFD)};
+    const char connectCommand  = {0x7F};
+    const char pidCommand  [2] = {static_cast<char>(0x02), static_cast<char>(0xFD)};
+    const char readCommand [2] = {static_cast<char>(0x11), static_cast<char>(0xEE)};
+    const char writeCommand[2] = {static_cast<char>(0x31), static_cast<char>(0xCE)};
+    const char clearCommand[2] = {static_cast<char>(0x44), static_cast<char>(0xBB)};
+    const char clearComConf[3] = {static_cast<char>(0xFF), static_cast<char>(0xFF), static_cast<char>(0x00)};
 
     bool readIdFlg = false;
 
-
+    QStringList * firmwareBuffer = nullptr;
 
     QSerialPort * serialPort = nullptr;
 
@@ -33,7 +38,7 @@ private:
 
     QString connectionStatus;
 
-    bool checkAck();
+    bool checkAck(int timeout);
 
 public:
 
@@ -53,6 +58,8 @@ public:
 
     Q_INVOKABLE void flashFirmware();
 
+    Q_INVOKABLE void clearMCUFlash();
+
     void readMCUID();
 
     QString getConnectionStatus() const;
@@ -62,6 +69,14 @@ public:
 signals:
 
     void portClosed();
+
+    void firmwareReadError();
+
+    void mCUMemoryClearError();
+
+    void mCUMemoryClearSucces();
+
+    void firmwareReadSucces();
 
     void connectionStatusChanged();
 

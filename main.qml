@@ -9,7 +9,7 @@ Window {
     title: qsTr("STM_Flasher")
     visible: true
     width: 300
-    height: 220
+    height: 270
 
     ColumnLayout {
         id: columnLayout
@@ -80,12 +80,23 @@ Window {
             Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
             onClicked: {
 
-                firmwareController.flashFirmwareFile();
+                firmwareController.flashFirmware();
             }
         }
         Button {
-            id: backUpFirmware
+            id: clearMCUFlash
             implicitWidth: serialPortChose.width
+            text: qsTr("Clear MCU Flash")
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+            onClicked: {
+
+                firmwareController.clearMCUFlash();
+            }
+        }
+
+        Button {
+            id: backUpFirmware
             text: qsTr("Back Up Firmware")
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
@@ -124,21 +135,23 @@ Window {
     function disableComponents()
     {
         serialPortChose.enabled = true;
-        openPort.enabled = true;
-        closePort.enabled = false;
-        choseFirmware.enabled = false;
-        flashFirmware.enabled = false;
-        backUpFirmware.enabled = false;
+        openPort.enabled        = true;
+        closePort.enabled       = false;
+        choseFirmware.enabled   = false;
+        flashFirmware.enabled   = false;
+        backUpFirmware.enabled  = false;
+        clearMCUFlash.enabled   = false;
     }
 
     function enableComponents()
     {
         serialPortChose.enabled = false;
-        openPort.enabled = false;
-        closePort.enabled = true;
-        choseFirmware.enabled = true
-        flashFirmware.enabled = true;
-        backUpFirmware.enabled = true;
+        openPort.enabled        = false;
+        closePort.enabled       = true;
+        choseFirmware.enabled   = true
+        backUpFirmware.enabled  = true;
+        clearMCUFlash.enabled   = true;
+
     }
 
     Component.onCompleted: {
@@ -151,9 +164,23 @@ Window {
         target: firmwareController;
 
         onPortClosed:{
-
             disableComponents();
         }
+        onFirmwareReadError:{
+            firmwareReadErrorDioalog.open();
+            flashFirmware.enabled = false;
+        }
+        onFirmwareReadSucces:{
+            flashFirmware.enabled = true;
+        }
+        onMCUMemoryClearError:{
+            clearMCUMemoryErrorDialog.open();
+            backUpFirmware.enabled = false;
+        }
+        onMCUMemoryClearSucces:{
+            backUpFirmware.enabled = false;
+        }
+
     }
 
     FileDialog {
@@ -189,6 +216,24 @@ Window {
         id: serialOpenErrorDialog
         title: "Serial port error"
         text: "Error while open serial port"
+        icon: StandardIcon.Critical
+        standardButtons: StandardButton.Ok
+        modality: Qt.WindowModal
+    }
+
+    MessageDialog{
+        id: firmwareReadErrorDialog
+        title: "Firmware read error"
+        text: "Error while reading MCU firmware file"
+        icon: StandardIcon.Critical
+        standardButtons: StandardButton.Ok
+        modality: Qt.WindowModal
+    }
+
+    MessageDialog{
+        id: clearMCUMemoryErrorDialog
+        title: "Cleaning MCU memory error"
+        text: "Error while cleaning MCU memory"
         icon: StandardIcon.Critical
         standardButtons: StandardButton.Ok
         modality: Qt.WindowModal

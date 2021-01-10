@@ -50,7 +50,7 @@ public:
 
     Q_INVOKABLE int openPort(const QString &portName);
 
-    Q_INVOKABLE void closePort();
+    Q_INVOKABLE void closePort(const QString & closeStatus);
 
     Q_INVOKABLE void readFirmwareFile(const QString &pathToFile);
 
@@ -81,8 +81,6 @@ signals:
     void connectionStatusChanged();
 
 public slots:
-
-    void serialPortCallBack();
 
     void portError(QSerialPort::SerialPortError error);
 };

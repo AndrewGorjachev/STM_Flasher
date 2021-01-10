@@ -68,17 +68,13 @@ int FirmwareController::openPort(const QString &portName)
 
             setConnectionStatus("Connected");
 
-            connect(serialPort, &QSerialPort::readyRead, this, &FirmwareController::serialPortCallBack);
-
             checkConnectTimer->start();
 
             return 0;
 
         } else {
 
-            setConnectionStatus("Connection Error");
-
-            closePort();
+            closePort("Connection Error");
 
             return 1;
         }
@@ -114,11 +110,11 @@ bool FirmwareController::checkAck(int timeout)
     }
 }
 
-void FirmwareController::closePort()
+void FirmwareController::closePort(const QString & closeStatus)
 {
     emit portClosed();
 
-    setConnectionStatus("Not Connected");
+    setConnectionStatus(closeStatus);
 
     checkConnectTimer->stop();
 
@@ -326,13 +322,13 @@ void FirmwareController::clearMCUFlash()
 
             emit mCUMemoryClearError();
 
-            closePort();
+            closePort("Firmware space wiping error");
         }
     } else {
 
         emit mCUMemoryClearError();
 
-        closePort();
+        closePort("Firmware space wiping error");
     }
 }
 
@@ -340,11 +336,44 @@ void FirmwareController::readMCUID()
 {
     serialPort->clear();
 
-    readIdFlg = true;
-
     serialPort->write(pidCommand, 2);
 
     serialPort->flush();
+
+    if(checkAck(10)){
+
+        char * buff = new char[4];
+
+        for(int i = 0; i<4; i++){
+
+            if(serialPort->read(&buff[i], 1)!=1){
+
+                if(serialPort->waitForReadyRead(5)){
+
+                    serialPort->read(&buff[i], 1);
+
+                } else{
+
+                    closePort("Target device connection loss");
+                }
+            }
+        }
+        if(!((buff[0] == 0x01) &&
+             (buff[1] == 0x04) &&
+             (buff[2] == 'i' ) &&
+             (buff[3] == 'y' )))
+        {
+            closePort("Target device connection loss");
+        }
+
+        qDebug() << hex << QString(buff);
+
+        delete [] buff;
+
+    } else {
+
+        closePort("Target device connection loss");
+    }
 }
 
 QString FirmwareController::getConnectionStatus() const
@@ -359,40 +388,5 @@ void FirmwareController::setConnectionStatus(const QString &value)
         connectionStatus = value;
 
         emit connectionStatusChanged();
-    }
-}
-
-void FirmwareController::serialPortCallBack()
-{
-    if (readIdFlg){
-
-        if (serialPort->bytesAvailable() < 5)
-        {
-            return;
-
-        } else {
-
-            QByteArray buff;
-
-            buff = serialPort->read(5);
-
-            qDebug() <<buff.toHex();
-
-
-            if((buff.at(0) == 'y')  &&
-               (buff.at(1) == 0x01) &&
-               (buff.at(2) == 0x04) &&
-               (buff.at(3) == 'i')  &&
-               (buff.at(4) == 'y'))
-            {
-                readIdFlg = false;
-
-            } else {
-
-                readIdFlg = false;
-
-                closePort();
-            }
-        }
     }
 }

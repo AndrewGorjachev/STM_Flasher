@@ -13,9 +13,12 @@ FirmwareController::FirmwareController(QObject *parent) : QObject(parent)
 
 FirmwareController::~FirmwareController()
 {
-    checkConnectTimer->stop();
+    if(checkConnectTimer!=nullptr){
 
-    delete checkConnectTimer;
+        checkConnectTimer->stop();
+
+        delete checkConnectTimer;
+    }
 
     if (serialPort!=nullptr)
     {
@@ -42,8 +45,6 @@ QStringList FirmwareController::getAllSerialPorts()
 
 int FirmwareController::openPort(const QString &portName)
 {
-    qDebug()<< "Open port " + portName;
-
     serialPort = new QSerialPort(portName);
 
     serialPort -> setBaudRate(115200);
@@ -88,23 +89,21 @@ int FirmwareController::openPort(const QString &portName)
 
 bool FirmwareController::checkAck(int timeout)
 {
-    QByteArray buff;
+    char buff;
 
-    if(serialPort->waitForReadyRead(timeout)){
+    if(serialPort->waitForReadyRead(timeout))
+    {
+        serialPort->read(&buff, 1);
 
-        buff = serialPort->read(1);
-
-        if(buff.at(0) == 0x79){
-
+        if(buff == 0x79)
+        {
             return true;
 
-        } else{
+        } else {
 
             return false;
         }
     } else {
-
-        qDebug()<< "Serial port timeout";
 
         return false;
     }
@@ -116,20 +115,29 @@ void FirmwareController::closePort(const QString & closeStatus)
 
     setConnectionStatus(closeStatus);
 
-    checkConnectTimer->stop();
+    if(checkConnectTimer->isActive()){
 
-    serialPort->close();
+        checkConnectTimer->stop();
+    }
+    if(serialPort != nullptr) {
 
-    delete serialPort;
+        if(serialPort->isOpen()){
 
-    serialPort = nullptr;
+            serialPort->close();
+        }
+        delete serialPort;
+
+        serialPort = nullptr;
+    }
 }
 
 void FirmwareController::portError(QSerialPort::SerialPortError error)
 {
-    if(error != QSerialPort::NoError){
+    if(error != QSerialPort::NoError)
+    {
+        qDebug() << error;
 
-        qDebug()<<error;
+        closePort("Target device connection error");
     }
 }
 
@@ -212,88 +220,111 @@ void FirmwareController::flashFirmware()
 
     checkConnectTimer->stop();
 
-    foreach(QString s, *firmwareBuffer){
+    serialPort->clear();
 
-        int payloadLenght = s.mid(1,2).toInt(nullptr, 16);
+    serialPort->close();
 
-        int addressOffSet = s.mid(3,4).toInt(nullptr, 16);
+    FirmwareFlashWorker * worker = new FirmwareFlashWorker(serialPort->portName(), *firmwareBuffer);
 
-        addressOffSet += 0x08000000;
+    QThread * thread = new QThread( );
 
-        QByteArray * address = new QByteArray();
+    connect(thread, &QThread::started, worker, &FirmwareFlashWorker::run);
 
-        address->append((addressOffSet >> 24) & 0xFF);
-        address->append((addressOffSet >> 16) & 0xff);
-        address->append((addressOffSet >> 8) & 0xff);
-        address->append((addressOffSet & 0xff));
+    worker->moveToThread(thread);
 
-        address->append(address->at(0)^address->at(1)^address->at(2)^address->at(3));
-
-        qDebug()<< address->toHex();
-
-        QByteArray * payload = new QByteArray();
-
-        payload->append(payloadLenght - 1);
-
-        uint8_t crcAcc = 0 ^ payload->at(0);
-
-        for (int i = 0; i<payloadLenght; i++){
-
-            uint8_t buff = s.mid(9+(i*2),2).toInt(nullptr, 16);
-
-            crcAcc ^= buff;
-
-            crcAcc &= 0xFF;
-
-            payload->append(buff);
-        }
-
-        payload->append(crcAcc);
-
-        qDebug() << payload->toHex();
-
-        serialPort->write(writeCommand, 2);
-
-        serialPort->flush();
-
-        if(checkAck(10)){
-
-            serialPort->write(*address);
-
-            serialPort->flush();
-
-            if(checkAck(50)){
-
-                serialPort->write(*payload);
-
-                serialPort->flush();
-
-                if(checkAck(750)){
-
-                }else {
-
-                    qDebug()<<"write data error";
-
-                    break;
-                }
-            } else {
-
-                qDebug()<<"write adress error";
-
-                break;
-            }
-        } else {
-
-            qDebug()<<"write command error";
-
-            break;
-        }
+    thread->start();
 
 
-        delete payload;
 
-    }
-    qDebug()<< *dataPath;
+
+//    for(int i = 0; i < firmwareBuffer->length(); i++) {
+
+//        //QThread::yieldCurrentThread();
+
+//        const QString * s = &(firmwareBuffer->at(i));
+
+//        int payloadLenght = s->mid(1,2).toInt(nullptr, 16);
+
+//        int addressOffSet = s->mid(3,4).toInt(nullptr, 16);
+
+//        addressOffSet += 0x08000000;
+
+//        QByteArray * address = new QByteArray();
+
+//        address->append((addressOffSet >> 24) & 0xFF);
+//        address->append((addressOffSet >> 16) & 0xff);
+//        address->append((addressOffSet >> 8) & 0xff);
+//        address->append((addressOffSet & 0xff));
+
+//        address->append(address->at(0)^address->at(1)^address->at(2)^address->at(3));
+
+//        //qDebug()<< address->toHex();
+
+//        QByteArray * payload = new QByteArray();
+
+//        payload->append(payloadLenght - 1);
+
+//        uint8_t crcAcc = 0 ^ payload->at(0);
+
+//        for (int i = 0; i<payloadLenght; i++){
+
+//            uint8_t buff = s->mid(9+(i*2),2).toInt(nullptr, 16);
+
+//            crcAcc ^= buff;
+
+//            crcAcc &= 0xFF;
+
+//            payload->append(buff);
+//        }
+
+//        payload->append(crcAcc);
+
+//        //qDebug() << payload->toHex();
+
+//        serialPort->write(writeCommand, 2);
+
+//        serialPort->flush();
+
+//        if(checkAck(10)){
+
+//            serialPort->write(*address);
+
+//            serialPort->flush();
+
+//            if(checkAck(50)){
+
+//                serialPort->write(*payload);
+
+//                serialPort->flush();
+
+//                if(checkAck(500)){
+
+//                    setProgress(static_cast<float>(i)/static_cast<float>(firmwareBuffer->length()));
+
+//                } else {
+
+//                    qDebug()<<"write data error";
+
+//                    break;
+//                }
+//            } else {
+
+//                qDebug()<<"write adress error";
+
+//                break;
+//            }
+//        } else {
+
+//            qDebug()<<"write command error";
+
+//            break;
+//        }
+
+
+//        delete payload;
+
+//    }
+//    qDebug()<< *dataPath;
 }
 
 void FirmwareController::clearMCUFlash()
@@ -388,5 +419,21 @@ void FirmwareController::setConnectionStatus(const QString &value)
         connectionStatus = value;
 
         emit connectionStatusChanged();
+    }
+}
+
+float FirmwareController::getProgress() const
+{
+    return progress;
+}
+
+void FirmwareController::setProgress(const float &value)
+{
+    qDebug()<< value;
+    if(value != progress)
+    {
+        progress = value;
+
+        emit progressChanged();
     }
 }

@@ -11,6 +11,8 @@ Window {
     width: 300
     height: 270
 
+    signal startFlashing();
+
     ColumnLayout {
         id: columnLayout
         anchors.rightMargin: 5
@@ -25,7 +27,7 @@ Window {
             Layout.fillWidth: true
             Layout.fillHeight: false
 
-            ComboBox  {
+            ComboBox {
                 id: serialPortChose
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter | Qt.AlignBottom
@@ -44,7 +46,7 @@ Window {
 
                     } else {
 
-                        serialOpenErrorDialog.open();
+                        //serialOpenErrorDialog.open();
                     }
                 }
             }
@@ -55,7 +57,7 @@ Window {
                 Layout.alignment: Qt.AlignHCenter | Qt.AlignTop
                 onClicked: {
 
-                    firmwareController.closePort();
+                    firmwareController.closePort(qsTr("Port has been closed by the user"));
 
                     disableComponents();
                 }
@@ -71,7 +73,6 @@ Window {
                 openFileDialog.open();
             }
         }
-
         Button {
             id: flashFirmware
             implicitWidth: serialPortChose.width
@@ -94,7 +95,6 @@ Window {
                 firmwareController.clearMCUFlash();
             }
         }
-
         Button {
             id: backUpFirmware
             text: qsTr("Back Up Firmware")
@@ -105,12 +105,11 @@ Window {
                 saveBackUpDialog.open();
             }
         }
-
         ProgressBar {
             id: firmwareProgressBar
             Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
             Layout.fillWidth: true
-            value: 0
+            value: firmwareController.progress
         }
 
         RowLayout {
@@ -123,7 +122,6 @@ Window {
                 text: "Status: "
                 Layout.fillWidth: false
             }
-
             Label {
                 id: connectionStatusLabel
                 text: firmwareController.connectionStatus
@@ -181,6 +179,8 @@ Window {
             backUpFirmware.enabled = false;
         }
 
+//        flashFirmwareCompletedDialog
+
     }
 
     FileDialog {
@@ -222,7 +222,7 @@ Window {
     }
 
     MessageDialog{
-        id: firmwareReadErrorDialog
+        id: firmwareReadErrorDioalog
         title: "Firmware read error"
         text: "Error while reading MCU firmware file"
         icon: StandardIcon.Critical
@@ -235,6 +235,15 @@ Window {
         title: "Cleaning MCU memory error"
         text: "Error while cleaning MCU memory"
         icon: StandardIcon.Critical
+        standardButtons: StandardButton.Ok
+        modality: Qt.WindowModal
+    }
+
+    MessageDialog{
+        id: flashFirmwareCompletedDialog
+        title: "Flash firmware completed"
+        text: "Flash firmware completed without error"
+        icon: StandardIcon.Information
         standardButtons: StandardButton.Ok
         modality: Qt.WindowModal
     }

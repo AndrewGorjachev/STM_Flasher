@@ -10,12 +10,16 @@
 #include <QSerialPort>
 #include <QSerialPortInfo>
 #include <QTimer>
+#include <QEventLoop>
+#include <firmwareflashworker.h>
 
 class FirmwareController : public QObject
 {
     Q_OBJECT
 
     Q_PROPERTY(QString connectionStatus READ getConnectionStatus WRITE setConnectionStatus NOTIFY connectionStatusChanged)
+
+    Q_PROPERTY(float progress READ getProgress WRITE setProgress NOTIFY progressChanged)
 
 private:
 
@@ -26,19 +30,21 @@ private:
     const char clearCommand[2] = {static_cast<char>(0x44), static_cast<char>(0xBB)};
     const char clearComConf[3] = {static_cast<char>(0xFF), static_cast<char>(0xFF), static_cast<char>(0x00)};
 
-    bool readIdFlg = false;
-
     QStringList * firmwareBuffer = nullptr;
 
-    QSerialPort * serialPort = nullptr;
+    QSerialPort * serialPort     = nullptr;
 
-    QString * dataPath = nullptr;
+    QString * dataPath           = nullptr;
 
-    QTimer * checkConnectTimer = nullptr;
+    QTimer * checkConnectTimer   = nullptr;
 
     QString connectionStatus;
 
+    float progress = 0;
+
     bool checkAck(int timeout);
+
+    void setProgress(const float & value);
 
 public:
 
@@ -56,13 +62,13 @@ public:
 
     Q_INVOKABLE void backUpFirmware(const QString &pathToFile);
 
-    Q_INVOKABLE void flashFirmware();
-
     Q_INVOKABLE void clearMCUFlash();
 
     void readMCUID();
 
     QString getConnectionStatus() const;
+
+    float getProgress() const;
 
     void setConnectionStatus(const QString &value);
 
@@ -80,7 +86,11 @@ signals:
 
     void connectionStatusChanged();
 
+    void progressChanged();
+
 public slots:
+
+    void flashFirmware();
 
     void portError(QSerialPort::SerialPortError error);
 };

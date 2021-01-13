@@ -30,6 +30,10 @@ private:
     const char clearCommand[2] = {static_cast<char>(0x44), static_cast<char>(0xBB)};
     const char clearComConf[3] = {static_cast<char>(0xFF), static_cast<char>(0xFF), static_cast<char>(0x00)};
 
+    FirmwareFlashWorker * worker = nullptr;
+
+    QThread * thread             = nullptr;
+
     QStringList * firmwareBuffer = nullptr;
 
     QSerialPort * serialPort     = nullptr;
@@ -82,6 +86,10 @@ signals:
 
     void mCUMemoryClearSucces();
 
+    void firmwareFlashError();
+
+    void firmwareFlashSucces();
+
     void firmwareReadSucces();
 
     void connectionStatusChanged();
@@ -89,6 +97,10 @@ signals:
     void progressChanged();
 
 public slots:
+
+    void workWithFirmwareHasFinished();
+
+    void errorWhileFirmwareFlashing();
 
     void flashFirmware();
 

@@ -19,7 +19,6 @@ FirmwareController::~FirmwareController()
 
         delete checkConnectTimer;
     }
-
     if (serialPort!=nullptr)
     {
         serialPort->close();
@@ -224,107 +223,23 @@ void FirmwareController::flashFirmware()
 
     serialPort->close();
 
-    FirmwareFlashWorker * worker = new FirmwareFlashWorker(serialPort->portName(), *firmwareBuffer);
+    worker = new FirmwareFlashWorker(serialPort->portName(), *firmwareBuffer);
 
-    QThread * thread = new QThread( );
+    thread = new QThread( );
 
     connect(thread, &QThread::started, worker, &FirmwareFlashWorker::run);
+
+    connect(worker, &FirmwareFlashWorker::progressValue, this, &FirmwareController::setProgress);
+
+    connect(worker, &FirmwareFlashWorker::errorWhileFlashing, this, &FirmwareController::errorWhileFirmwareFlashing);
+
+    connect(worker, &FirmwareFlashWorker::finished, worker, &QObject::deleteLater);
+
+    connect(worker, &FirmwareFlashWorker::finished, this, &FirmwareController::workWithFirmwareHasFinished);
 
     worker->moveToThread(thread);
 
     thread->start();
-
-
-
-
-//    for(int i = 0; i < firmwareBuffer->length(); i++) {
-
-//        //QThread::yieldCurrentThread();
-
-//        const QString * s = &(firmwareBuffer->at(i));
-
-//        int payloadLenght = s->mid(1,2).toInt(nullptr, 16);
-
-//        int addressOffSet = s->mid(3,4).toInt(nullptr, 16);
-
-//        addressOffSet += 0x08000000;
-
-//        QByteArray * address = new QByteArray();
-
-//        address->append((addressOffSet >> 24) & 0xFF);
-//        address->append((addressOffSet >> 16) & 0xff);
-//        address->append((addressOffSet >> 8) & 0xff);
-//        address->append((addressOffSet & 0xff));
-
-//        address->append(address->at(0)^address->at(1)^address->at(2)^address->at(3));
-
-//        //qDebug()<< address->toHex();
-
-//        QByteArray * payload = new QByteArray();
-
-//        payload->append(payloadLenght - 1);
-
-//        uint8_t crcAcc = 0 ^ payload->at(0);
-
-//        for (int i = 0; i<payloadLenght; i++){
-
-//            uint8_t buff = s->mid(9+(i*2),2).toInt(nullptr, 16);
-
-//            crcAcc ^= buff;
-
-//            crcAcc &= 0xFF;
-
-//            payload->append(buff);
-//        }
-
-//        payload->append(crcAcc);
-
-//        //qDebug() << payload->toHex();
-
-//        serialPort->write(writeCommand, 2);
-
-//        serialPort->flush();
-
-//        if(checkAck(10)){
-
-//            serialPort->write(*address);
-
-//            serialPort->flush();
-
-//            if(checkAck(50)){
-
-//                serialPort->write(*payload);
-
-//                serialPort->flush();
-
-//                if(checkAck(500)){
-
-//                    setProgress(static_cast<float>(i)/static_cast<float>(firmwareBuffer->length()));
-
-//                } else {
-
-//                    qDebug()<<"write data error";
-
-//                    break;
-//                }
-//            } else {
-
-//                qDebug()<<"write adress error";
-
-//                break;
-//            }
-//        } else {
-
-//            qDebug()<<"write command error";
-
-//            break;
-//        }
-
-
-//        delete payload;
-
-//    }
-//    qDebug()<< *dataPath;
 }
 
 void FirmwareController::clearMCUFlash()
@@ -422,6 +337,38 @@ void FirmwareController::setConnectionStatus(const QString &value)
     }
 }
 
+void FirmwareController::workWithFirmwareHasFinished()
+{
+    if(serialPort->open(QIODevice::ReadWrite))
+    {
+        checkConnectTimer->start();
+
+        emit firmwareFlashSucces();
+
+    } else {
+
+        emit firmwareFlashError();
+    }
+    if(thread != nullptr)
+    {
+        if(thread->isRunning())
+        {
+            thread->terminate();
+        }
+        delete thread;
+
+        thread = nullptr;
+    }
+}
+
+void FirmwareController::errorWhileFirmwareFlashing()
+{
+    qDebug()<<"error while firmware flashing";
+
+    //emit errorWhileFirmwareFlashing();
+}
+
+
 float FirmwareController::getProgress() const
 {
     return progress;
@@ -429,7 +376,6 @@ float FirmwareController::getProgress() const
 
 void FirmwareController::setProgress(const float &value)
 {
-    qDebug()<< value;
     if(value != progress)
     {
         progress = value;

@@ -4,8 +4,6 @@ FirmwareFlashWorker::FirmwareFlashWorker(QObject *parent) : QObject(parent){}
 
 FirmwareFlashWorker::FirmwareFlashWorker(const QString & port, const QStringList & firmwareBuffer)
 {
-    qDebug() << "Worker has created";
-
     this -> portName = new QString(port);
 
     this -> firmwareBuffer = new QStringList(firmwareBuffer);
@@ -13,14 +11,33 @@ FirmwareFlashWorker::FirmwareFlashWorker(const QString & port, const QStringList
 
 FirmwareFlashWorker::~FirmwareFlashWorker()
 {
-    delete portName;
+    qDebug()<< "~FirmwareFlashWorker()";
 
-    delete firmwareBuffer;
+    if(portName != nullptr)
+    {
+        delete portName;
+    }
+    if(firmwareBuffer != nullptr)
+    {
+        delete firmwareBuffer;
+    }
+    if (serialPort != nullptr)
+    {
+        if(serialPort->isOpen())
+        {
+            qDebug()<< "serialPort->isOpen()";
+
+            serialPort->clear();
+
+            serialPort->close();
+        }
+        delete serialPort;
+    }
 }
 
 void FirmwareFlashWorker::run()
 {
-    qDebug() << "Worker has started";
+    qDebug()<< "Worker has been started";
 
     serialPort = new QSerialPort(*portName);
 
@@ -36,106 +53,142 @@ void FirmwareFlashWorker::run()
 
     connect(serialPort, &QSerialPort::errorOccurred, this, &FirmwareFlashWorker::errorHandler);
 
-    if (serialPort -> open(QIODevice::ReadWrite)) {
+    if (serialPort -> open(QIODevice::ReadWrite))
+    {
+        qDebug()<< "Port has been open";
 
-        qDebug()<< "port has reopen";
+        for(int i = 0; i < firmwareBuffer->length(); i++)
+        {
+            qDebug()<< i;
 
-        for(int i = 0; i < firmwareBuffer->length(); i++) {
+            if(!interrupted)
+            {
+                const QString * s = &(firmwareBuffer->at(i));
 
-            //QThread::yieldCurrentThread();
+                int payloadLenght = s->mid(1,2).toInt(nullptr, 16);
 
-            const QString * s = &(firmwareBuffer->at(i));
+                int addressOffSet = s->mid(3,4).toInt(nullptr, 16);
 
-            int payloadLenght = s->mid(1,2).toInt(nullptr, 16);
+                addressOffSet += 0x08000000;
 
-            int addressOffSet = s->mid(3,4).toInt(nullptr, 16);
+                QByteArray * address = new QByteArray();
 
-            addressOffSet += 0x08000000;
+                address->append((addressOffSet >> 24) & 0xFF);
+                address->append((addressOffSet >> 16) & 0xff);
+                address->append((addressOffSet >> 8) & 0xff);
+                address->append((addressOffSet & 0xff));
 
-            QByteArray * address = new QByteArray();
+                address->append(address->at(0)^address->at(1)^address->at(2)^address->at(3));
 
-            address->append((addressOffSet >> 24) & 0xFF);
-            address->append((addressOffSet >> 16) & 0xff);
-            address->append((addressOffSet >> 8) & 0xff);
-            address->append((addressOffSet & 0xff));
+                QByteArray * payload = new QByteArray();
 
-            address->append(address->at(0)^address->at(1)^address->at(2)^address->at(3));
+                payload->append(payloadLenght - 1);
 
-            //qDebug()<< address->toHex();
+                uint8_t crcAcc = 0 ^ payload->at(0);
 
-            QByteArray * payload = new QByteArray();
+                for (int i = 0; i<payloadLenght; i++){
 
-            payload->append(payloadLenght - 1);
+                    uint8_t buff = s->mid(9+(i*2),2).toInt(nullptr, 16);
 
-            uint8_t crcAcc = 0 ^ payload->at(0);
+                    crcAcc ^= buff;
 
-            for (int i = 0; i<payloadLenght; i++){
+                    crcAcc &= 0xFF;
 
-                uint8_t buff = s->mid(9+(i*2),2).toInt(nullptr, 16);
+                    payload->append(buff);
+                }
 
-                crcAcc ^= buff;
+                payload->append(crcAcc);
 
-                crcAcc &= 0xFF;
-
-                payload->append(buff);
-            }
-
-            payload->append(crcAcc);
-
-            //qDebug() << payload->toHex();
-
-            serialPort->write(writeCommand, 2);
-
-            serialPort->flush();
-
-            if(checkAck(10)){
-
-                serialPort->write(*address);
+                serialPort->write(writeCommand, 2);
 
                 serialPort->flush();
 
-                if(checkAck(50)){
+                if(checkAck(15)){
 
-                    serialPort->write(*payload);
+                    serialPort->write(*address);
 
                     serialPort->flush();
 
-                    if(checkAck(500)){
+                    if(address != nullptr)
+                    {
+                        delete address;
 
-                        qDebug() << static_cast<float>(i)/static_cast<float>(firmwareBuffer->length());
+                        address = nullptr;
+                    }
 
-                        //setProgress(static_cast<float>(i)/static_cast<float>(firmwareBuffer->length()));
+                    if(checkAck(60)){
 
+                        serialPort->write(*payload);
+
+                        serialPort->flush();
+
+                        if(payload!=nullptr)
+                        {
+                            delete payload;
+
+                            payload = nullptr;
+                        }
+                        if(checkAck(750)){
+
+                            emit progressValue(static_cast<float>(i)/static_cast<float>(firmwareBuffer->length()));
+
+                        } else {
+
+                            qDebug()<< "write payload error";
+
+                            //emit serialPort->errorOccurred(QSerialPort::WriteError);
+
+                            return;
+                        }
                     } else {
 
-                        qDebug()<<"write data error";
+                        qDebug()<< "write address error";
 
-                        break;
+                        //emit serialPort->errorOccurred(QSerialPort::WriteError);
+
+                        return;
                     }
                 } else {
 
-                    qDebug()<<"write adress error";
+                    qDebug()<< "write command error";
 
-                    break;
+                    if(payload!=nullptr)
+                    {
+                        delete payload;
+
+                        payload = nullptr;
+                    }
+                    if(address!=nullptr)
+                    {
+                        delete address;
+
+                        address = nullptr;
+                    }
+                    //emit serialPort->errorOccurred(QSerialPort::WriteError);
+
+                    return;
                 }
-            } else {
-
-                qDebug()<<"write command error";
-
-                break;
             }
-
-
-            delete payload;
-
         }
-        qDebug() << "firmware has flash";
     }
+    closePort();
+
+    emit finished("w/o error");
 }
 
-void FirmwareFlashWorker::errorHandler()
+void FirmwareFlashWorker::stop()
 {
+    interrupted = true;
+}
 
+void FirmwareFlashWorker::errorHandler(QSerialPort::SerialPortError error)
+{
+    if(error != QSerialPort::NoError)
+    {
+        emit finished("error");
+
+        closePort();
+    }
 }
 
 bool FirmwareFlashWorker::checkAck(int timeout)
@@ -157,5 +210,23 @@ bool FirmwareFlashWorker::checkAck(int timeout)
     } else {
 
         return false;
+    }
+}
+
+void FirmwareFlashWorker::closePort()
+{
+    qDebug()<<"closing port";
+
+    if (serialPort!=nullptr){
+
+        if(serialPort->isOpen()){
+
+            serialPort->clear();
+
+            serialPort->close();
+        }
+        delete serialPort;
+
+        serialPort = nullptr;
     }
 }

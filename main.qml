@@ -38,8 +38,8 @@ Window {
                 text: qsTr("Open Port")
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter | Qt.AlignTop
-                onClicked: {
-
+                onClicked:
+                {
                     if(firmwareController.openPort(serialPortChose.currentText)===0)
                     {
                         enableComponents();
@@ -55,8 +55,8 @@ Window {
                 text: qsTr("Close Port")
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignHCenter | Qt.AlignTop
-                onClicked: {
-
+                onClicked:
+                {
                     firmwareController.closePort(qsTr("Port has been closed by the user"));
 
                     disableComponents();
@@ -68,8 +68,8 @@ Window {
             text: qsTr("Chose Firmware")
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
-            onClicked: {
-
+            onClicked:
+            {
                 openFileDialog.open();
             }
         }
@@ -79,8 +79,8 @@ Window {
             text: qsTr("Flash Firmware")
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
-            onClicked: {
-
+            onClicked:
+            {
                 firmwareController.flashFirmware();
             }
         }
@@ -90,8 +90,8 @@ Window {
             text: qsTr("Clear MCU Flash")
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
-            onClicked: {
-
+            onClicked:
+            {
                 firmwareController.clearMCUFlash();
             }
         }
@@ -100,8 +100,8 @@ Window {
             text: qsTr("Back Up Firmware")
             Layout.fillWidth: true
             Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
-            onClicked: {
-
+            onClicked:
+            {
                 saveBackUpDialog.open();
             }
         }
@@ -129,7 +129,6 @@ Window {
             }
         }
     }
-
     function disableComponents()
     {
         serialPortChose.enabled = true;
@@ -140,7 +139,6 @@ Window {
         backUpFirmware.enabled  = false;
         clearMCUFlash.enabled   = false;
     }
-
     function enableComponents()
     {
         serialPortChose.enabled = false;
@@ -151,48 +149,62 @@ Window {
         clearMCUFlash.enabled   = true;
 
     }
-
-    Component.onCompleted: {
-
+    Component.onCompleted:
+    {
         disableComponents();
     }
 
-    Connections{
-
+    Connections
+    {
         target: firmwareController;
 
-        onPortClosed:{
+        onPortClosed:
+        {
             disableComponents();
         }
-        onFirmwareReadError:{
+        onFirmwareReadError:
+        {
             firmwareReadErrorDioalog.open();
+
             flashFirmware.enabled = false;
         }
-        onFirmwareReadSucces:{
+        onFirmwareReadSucces:
+        {
             flashFirmware.enabled = true;
         }
-        onMCUMemoryClearError:{
+        onMCUMemoryClearError:
+        {
             clearMCUMemoryErrorDialog.open();
+
             backUpFirmware.enabled = false;
         }
-        onMCUMemoryClearSucces:{
+        onMCUMemoryClearSucces:
+        {
             backUpFirmware.enabled = false;
         }
+        onFirmwareFlashError:
+        {
+            flashFirmwareErrorDialog.open();
 
-//        flashFirmwareCompletedDialog
+            backUpFirmware.enabled = false;
+        }
+        onFirmwareFlashSucces:
+        {
+            flashFirmwareCompletedDialog.open();
 
+            backUpFirmware.enabled = true;
+        }
     }
-
     FileDialog {
         id: openFileDialog
         title: "Please choose a folder"
         folder: shortcuts.home
-        onAccepted: {
-
+        onAccepted:
+        {
             firmwareController.readFirmwareFile(openFileDialog.fileUrl)
         }
-        onRejected: {
-
+        onRejected:
+        {
             console.log("Open FW file has been canceled")
         }
     }
@@ -202,12 +214,12 @@ Window {
         title: "Please choose a folder"
         selectFolder: true
         folder: shortcuts.home
-        onAccepted: {
-
+        onAccepted:
+        {
             firmwareController.backUpFirmware(saveBackUpDialog.fileUrls)
         }
-        onRejected: {
-
+        onRejected:
+        {
             console.log("Saving FW BackUp file has been canceled")
         }
     }
@@ -244,6 +256,15 @@ Window {
         title: "Flash firmware completed"
         text: "Flash firmware completed without error"
         icon: StandardIcon.Information
+        standardButtons: StandardButton.Ok
+        modality: Qt.WindowModal
+    }
+
+    MessageDialog{
+        id: flashFirmwareErrorDialog
+        title: "Flash firmware error"
+        text: "Error while firmware flashing"
+        icon: StandardIcon.Critical
         standardButtons: StandardButton.Ok
         modality: Qt.WindowModal
     }

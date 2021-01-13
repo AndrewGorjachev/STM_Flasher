@@ -7,13 +7,15 @@
 #include <QRunnable>
 #include <QSerialPort>
 
-class FirmwareFlashWorker : public QObject, public QRunnable
+class FirmwareFlashWorker : public QObject
 {
     Q_OBJECT
 
 private:
 
-    QString * portName           = nullptr;
+    bool interrupted = false;
+
+    QString     * portName       = nullptr;
 
     QStringList * firmwareBuffer = nullptr;
 
@@ -21,10 +23,10 @@ private:
 
     const char writeCommand[2]   = {static_cast<char>(0x31), static_cast<char>(0xCE)};
 
-    void errorHandler();
 
     bool checkAck(int timeout);
 
+    void closePort();
 
 public:
     explicit FirmwareFlashWorker(QObject *parent = nullptr);
@@ -33,10 +35,19 @@ public:
 
     ~FirmwareFlashWorker();
 
-    void run() override;
+    void run();
 
 signals:
 
+    void progressValue(float value);
+
+    void finished(const QString & status);
+
+public slots:
+
+    void stop();
+
+    void errorHandler(QSerialPort::SerialPortError error);
 };
 
 #endif // FIRMWAREFLASHWORKER_H

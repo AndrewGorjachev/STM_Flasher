@@ -46,7 +46,7 @@ Window {
 
                     } else {
 
-                        //serialOpenErrorDialog.open();
+                        serialOpenErrorDialog.open();
                     }
                 }
             }
@@ -81,6 +81,8 @@ Window {
             Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
             onClicked:
             {
+                disableWhileOperation()
+
                 firmwareController.flashFirmware();
             }
         }
@@ -102,6 +104,8 @@ Window {
             Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
             onClicked:
             {
+                disableWhileOperation();
+
                 saveBackUpDialog.open();
             }
         }
@@ -147,8 +151,18 @@ Window {
         choseFirmware.enabled   = true
         backUpFirmware.enabled  = true;
         clearMCUFlash.enabled   = true;
-
     }
+    function disableWhileOperation()
+    {
+        serialPortChose.enabled = false;
+        openPort.enabled        = false;
+        closePort.enabled       = false;
+        choseFirmware.enabled   = false;
+        flashFirmware.enabled   = false;
+        backUpFirmware.enabled  = false;
+        clearMCUFlash.enabled   = false;
+    }
+
     Component.onCompleted:
     {
         disableComponents();
@@ -186,13 +200,17 @@ Window {
         {
             flashFirmwareErrorDialog.open();
 
+            disableComponents();
+
             backUpFirmware.enabled = false;
         }
         onFirmwareFlashSucces:
         {
             flashFirmwareCompletedDialog.open();
 
-            backUpFirmware.enabled = true;
+            enableComponents();
+
+            flashFirmware.enabled   = true;
         }
     }
     FileDialog {

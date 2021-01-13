@@ -98,11 +98,9 @@ signals:
 
 public slots:
 
-    void workWithFirmwareHasFinished();
-
-    void errorWhileFirmwareFlashing();
-
     void flashFirmware();
+
+    void workWithFirmwareHasFinished(const QString & errorStatus);
 
     void portError(QSerialPort::SerialPortError error);
 };

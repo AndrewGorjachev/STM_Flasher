@@ -11,8 +11,6 @@ FirmwareFlashWorker::FirmwareFlashWorker(const QString & port, const QStringList
 
 FirmwareFlashWorker::~FirmwareFlashWorker()
 {
-    qDebug()<< "~FirmwareFlashWorker()";
-
     if(portName != nullptr)
     {
         delete portName;
@@ -25,8 +23,6 @@ FirmwareFlashWorker::~FirmwareFlashWorker()
     {
         if(serialPort->isOpen())
         {
-            qDebug()<< "serialPort->isOpen()";
-
             serialPort->clear();
 
             serialPort->close();
@@ -37,8 +33,6 @@ FirmwareFlashWorker::~FirmwareFlashWorker()
 
 void FirmwareFlashWorker::run()
 {
-    qDebug()<< "Worker has been started";
-
     serialPort = new QSerialPort(*portName);
 
     serialPort -> setBaudRate(115200);
@@ -53,14 +47,12 @@ void FirmwareFlashWorker::run()
 
     connect(serialPort, &QSerialPort::errorOccurred, this, &FirmwareFlashWorker::errorHandler);
 
+    connect(this, &FirmwareFlashWorker::errorHappen, this, &FirmwareFlashWorker::errorHandler);
+
     if (serialPort -> open(QIODevice::ReadWrite))
     {
-        qDebug()<< "Port has been open";
-
         for(int i = 0; i < firmwareBuffer->length(); i++)
         {
-            qDebug()<< i;
-
             if(!interrupted)
             {
                 const QString * s = &(firmwareBuffer->at(i));
@@ -134,23 +126,17 @@ void FirmwareFlashWorker::run()
 
                         } else {
 
-                            qDebug()<< "write payload error";
+                            status = "Write payload error";
 
-                            //emit serialPort->errorOccurred(QSerialPort::WriteError);
-
-                            return;
+                            break;
                         }
                     } else {
 
-                        qDebug()<< "write address error";
+                        status = "Write address error";
 
-                        //emit serialPort->errorOccurred(QSerialPort::WriteError);
-
-                        return;
+                        break;
                     }
                 } else {
-
-                    qDebug()<< "write command error";
 
                     if(payload!=nullptr)
                     {
@@ -164,16 +150,19 @@ void FirmwareFlashWorker::run()
 
                         address = nullptr;
                     }
-                    //emit serialPort->errorOccurred(QSerialPort::WriteError);
+                    status = "Write command error";
 
-                    return;
+                    break;
                 }
             }
         }
+    } else {
+
+        status = "error";
     }
     closePort();
 
-    emit finished("w/o error");
+    emit finished(status);
 }
 
 void FirmwareFlashWorker::stop()
@@ -185,8 +174,6 @@ void FirmwareFlashWorker::errorHandler(QSerialPort::SerialPortError error)
 {
     if(error != QSerialPort::NoError)
     {
-        emit finished("error");
-
         closePort();
     }
 }
@@ -215,8 +202,6 @@ bool FirmwareFlashWorker::checkAck(int timeout)
 
 void FirmwareFlashWorker::closePort()
 {
-    qDebug()<<"closing port";
-
     if (serialPort!=nullptr){
 
         if(serialPort->isOpen()){

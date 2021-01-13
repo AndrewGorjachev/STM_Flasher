@@ -231,8 +231,6 @@ void FirmwareController::flashFirmware()
 
     connect(worker, &FirmwareFlashWorker::progressValue, this, &FirmwareController::setProgress);
 
-    connect(worker, &FirmwareFlashWorker::errorWhileFlashing, this, &FirmwareController::errorWhileFirmwareFlashing);
-
     connect(worker, &FirmwareFlashWorker::finished, worker, &QObject::deleteLater);
 
     connect(worker, &FirmwareFlashWorker::finished, this, &FirmwareController::workWithFirmwareHasFinished);
@@ -337,37 +335,38 @@ void FirmwareController::setConnectionStatus(const QString &value)
     }
 }
 
-void FirmwareController::workWithFirmwareHasFinished()
+void FirmwareController::workWithFirmwareHasFinished(const QString & errorStatus)
 {
-    if(serialPort->open(QIODevice::ReadWrite))
-    {
-        checkConnectTimer->start();
+    if(errorStatus=="w/o error"){
 
-        emit firmwareFlashSucces();
+        if(serialPort->open(QIODevice::ReadWrite))
+        {
+            checkConnectTimer->start();
 
+            emit firmwareFlashSucces();
+
+        } else {
+
+            emit firmwareFlashError();
+        }
     } else {
 
         emit firmwareFlashError();
     }
-    if(thread != nullptr)
-    {
-        if(thread->isRunning())
-        {
-            thread->terminate();
-        }
-        delete thread;
 
-        thread = nullptr;
-    }
+//    thread->wait(100);
+
+//    if(thread != nullptr)
+//    {
+//        if(thread->isRunning())
+//        {
+//            thread->terminate();
+//        }
+//        delete thread;
+
+//        thread = nullptr;
+//    }
 }
-
-void FirmwareController::errorWhileFirmwareFlashing()
-{
-    qDebug()<<"error while firmware flashing";
-
-    //emit errorWhileFirmwareFlashing();
-}
-
 
 float FirmwareController::getProgress() const
 {

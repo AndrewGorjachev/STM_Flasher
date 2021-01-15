@@ -32,7 +32,7 @@ private:
 public:
     explicit FirmwareFlashWorker(QObject *parent = nullptr);
 
-    explicit FirmwareFlashWorker(const QString & port, const QStringList & firmwareBuffer);
+    explicit FirmwareFlashWorker(const QString & port, const QStringList & pathToBackUp);
 
     ~FirmwareFlashWorker();
 

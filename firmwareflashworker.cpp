@@ -47,8 +47,6 @@ void FirmwareFlashWorker::run()
 
     connect(serialPort, &QSerialPort::errorOccurred, this, &FirmwareFlashWorker::errorHandler);
 
-    connect(this, &FirmwareFlashWorker::errorHappen, this, &FirmwareFlashWorker::errorHandler);
-
     if (serialPort -> open(QIODevice::ReadWrite))
     {
         for(int i = 0; i < firmwareBuffer->length(); i++)
@@ -95,7 +93,7 @@ void FirmwareFlashWorker::run()
 
                 serialPort->flush();
 
-                if(checkAck(15)){
+                if(checkAck(15)){                                              // Empirically defined answer delay
 
                     serialPort->write(*address);
 
@@ -108,7 +106,7 @@ void FirmwareFlashWorker::run()
                         address = nullptr;
                     }
 
-                    if(checkAck(60)){
+                    if(checkAck(60)){                                          // Empirically defined answer delay
 
                         serialPort->write(*payload);
 
@@ -120,7 +118,7 @@ void FirmwareFlashWorker::run()
 
                             payload = nullptr;
                         }
-                        if(checkAck(750)){
+                        if(checkAck(750)){                                     // Empirically defined answer delay
 
                             emit progressValue(static_cast<float>(i)/static_cast<float>(firmwareBuffer->length()));
 

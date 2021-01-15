@@ -208,9 +208,35 @@ void FirmwareController::readFirmwareFile(const QString &pathToFile)
     }
 }
 
-void FirmwareController::backUpFirmware(const QString &pathToFile)
+void FirmwareController::backUpFirmware(const QString & pathToBackUp)
 {
-    qDebug()<< pathToFile;
+    checkConnectTimer->stop();
+
+//    serialPort->flush();
+
+    serialPort->clear();
+
+    serialPort->close();
+
+    backUpWorker = new FirmwareBackUpWorker(serialPort->portName(), pathToBackUp);
+
+    if(thread != nullptr){
+
+        delete thread;
+    }
+    thread = new QThread( );
+
+    connect(thread, &QThread::started, backUpWorker, &FirmwareBackUpWorker::run);
+
+    connect(backUpWorker, &FirmwareBackUpWorker::progressValue, this, &FirmwareController::setProgress);
+
+    connect(backUpWorker, &FirmwareBackUpWorker::finished, backUpWorker, &QObject::deleteLater);
+
+    connect(backUpWorker, &FirmwareBackUpWorker::finished, this, &FirmwareController::workWithFirmwareHasFinished);
+
+    backUpWorker->moveToThread(thread);
+
+    thread->start();
 }
 
 void FirmwareController::flashFirmware()
@@ -219,23 +245,34 @@ void FirmwareController::flashFirmware()
 
     checkConnectTimer->stop();
 
+//    serialPort->flush();
+
     serialPort->clear();
 
     serialPort->close();
 
-    worker = new FirmwareFlashWorker(serialPort->portName(), *firmwareBuffer);
+    flashWorker = new FirmwareFlashWorker(serialPort->portName(), *firmwareBuffer);
 
+    if(thread != nullptr){
+
+        if(thread->isRunning()){
+
+            thread->quit();
+        }
+
+        delete thread;
+    }
     thread = new QThread( );
 
-    connect(thread, &QThread::started, worker, &FirmwareFlashWorker::run);
+    connect(thread, &QThread::started, flashWorker, &FirmwareFlashWorker::run);
 
-    connect(worker, &FirmwareFlashWorker::progressValue, this, &FirmwareController::setProgress);
+    connect(flashWorker, &FirmwareFlashWorker::progressValue, this, &FirmwareController::setProgress);
 
-    connect(worker, &FirmwareFlashWorker::finished, worker, &QObject::deleteLater);
+    connect(flashWorker, &FirmwareFlashWorker::finished, flashWorker, &QObject::deleteLater);
 
-    connect(worker, &FirmwareFlashWorker::finished, this, &FirmwareController::workWithFirmwareHasFinished);
+    connect(flashWorker, &FirmwareFlashWorker::finished, this, &FirmwareController::workWithFirmwareHasFinished);
 
-    worker->moveToThread(thread);
+    flashWorker->moveToThread(thread);
 
     thread->start();
 }

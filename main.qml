@@ -212,6 +212,23 @@ Window {
 
             flashFirmware.enabled   = true;
         }
+
+        onFirmwareBackUpError:
+        {
+            backUpFirmwareErrorDialog.open();
+
+            disableComponents();
+
+            backUpFirmware.enabled = false;
+        }
+        onFirmwareBackUpSucces:
+        {
+            backUpFirmwareCompletedDialog.open();
+
+            enableComponents();
+
+            flashFirmware.enabled   = false;
+        }
     }
     FileDialog {
         id: openFileDialog
@@ -236,9 +253,14 @@ Window {
         {
             firmwareController.backUpFirmware(saveBackUpDialog.fileUrls)
         }
-        onRejected:
+        onRejected:            
         {
-            console.log("Saving FW BackUp file has been canceled")
+            enableComponents();
+
+            if(firmwareController.isPosibleToFlash())
+            {
+                flashFirmware.enabled = true;
+            }
         }
     }
 
@@ -282,6 +304,24 @@ Window {
         id: flashFirmwareErrorDialog
         title: "Flash firmware error"
         text: "Error while firmware flashing"
+        icon: StandardIcon.Critical
+        standardButtons: StandardButton.Ok
+        modality: Qt.WindowModal
+    }
+
+    MessageDialog{
+        id: backUpFirmwareCompletedDialog
+        title: "BackUp firmware completed"
+        text: "BackUp firmware completed without error"
+        icon: StandardIcon.Information
+        standardButtons: StandardButton.Ok
+        modality: Qt.WindowModal
+    }
+
+    MessageDialog{
+        id: backUpFirmwareErrorDialog
+        title: "BackUp firmware error"
+        text: "Error while firmware backup"
         icon: StandardIcon.Critical
         standardButtons: StandardButton.Ok
         modality: Qt.WindowModal

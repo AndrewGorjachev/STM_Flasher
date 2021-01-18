@@ -70,6 +70,8 @@ public:
 
     Q_INVOKABLE void clearMCUFlash();
 
+    Q_INVOKABLE bool isPosibleToFlash();
+
     QString getConnectionStatus() const;
 
     float getProgress() const;
@@ -92,6 +94,10 @@ signals:
 
     void firmwareFlashSucces();
 
+    void firmwareBackUpSucces();
+
+    void firmwareBackUpError();
+
     void firmwareReadSucces();
 
     void connectionStatusChanged();
@@ -102,7 +108,9 @@ public slots:
 
     void flashFirmware();
 
-    void workWithFirmwareHasFinished(const QString & errorStatus);
+    void flashFirmwareHasFinished(const QString & errorStatus);
+
+    void backUpFirmwareHasFinished(const QString & errorStatus);
 
     void portError(QSerialPort::SerialPortError error);
 };

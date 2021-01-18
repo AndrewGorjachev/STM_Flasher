@@ -5,7 +5,6 @@ CommonResources::CommonResources(QObject *parent) : QObject(parent){}
 CommonResources::CommonResources(const QString &portName)
 {
     this -> portName = new QString(portName);
-
 }
 
 CommonResources::~CommonResources()
@@ -23,6 +22,18 @@ CommonResources::~CommonResources()
             serialPort->close();
         }
         delete serialPort;
+    }
+    if (serialPort!=nullptr)
+    {
+        if(serialPort->isOpen())
+        {
+            serialPort->clear();
+
+            serialPort->close();
+        }
+        delete serialPort;
+
+        serialPort = nullptr;
     }
 }
 
@@ -43,22 +54,24 @@ bool CommonResources::checkAck(int timeout)
 {
     char buff;
 
-    if(serialPort->waitForReadyRead(timeout))
+    if (serialPort!=nullptr)
     {
-        serialPort->read(&buff, 1);
-
-        if(buff == 0x79)
+        if(serialPort->waitForReadyRead(timeout))
         {
-            return true;
 
-        } else {
+            if (serialPort!=nullptr)
+            {
+                serialPort->read(&buff, 1);
 
-            return false;
+                if(buff == 0x79)
+                {
+                    return true;
+
+                }
+            }
         }
-    } else {
-
-        return false;
     }
+    return false;
 }
 
 void CommonResources::closePort()
@@ -92,4 +105,63 @@ void CommonResources::initPort()
     serialPort -> setFlowControl(QSerialPort::NoFlowControl);
 
     connect(serialPort, &QSerialPort::errorOccurred, this, &CommonResources::errorHandler);
+}
+
+int CommonResources::write(const char *data, qint64 len)
+{
+    if (serialPort == nullptr)
+    {
+        return -1;
+
+    } else {
+
+        serialPort->clear();
+    }
+    if(serialPort == nullptr){
+
+        return -1;
+
+    }else {
+
+        serialPort->write(data, len);
+    }
+
+    if(serialPort == nullptr)
+    {
+        return -1;
+
+    } else {
+
+        serialPort->flush();
+    }
+    return 0;
+}
+
+int CommonResources::write(const QByteArray &data)
+{
+    if (serialPort == nullptr)
+    {
+        return -1;
+
+    } else {
+
+        serialPort->clear();
+    }
+    if(serialPort == nullptr)
+    {
+        return -1;
+
+    } else {
+
+        serialPort->write(data);
+    }
+    if(serialPort == nullptr)
+    {
+        return -1;
+
+    } else {
+
+        serialPort->flush();
+    }
+    return 0;
 }

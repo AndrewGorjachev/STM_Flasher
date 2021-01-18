@@ -5,6 +5,11 @@
 #include <QObject>
 #include <QSerialPort>
 
+#define reportError(error)      \
+        interrupted = true;     \
+        executionStatus = error;\
+        break
+
 class CommonResources : public QObject
 {
     Q_OBJECT
@@ -38,6 +43,11 @@ protected:
     void closePort();
 
     void initPort();
+
+    int write(const char *data, qint64 len);
+
+    int write(const QByteArray &data);
+
 
 signals:
 

@@ -1,51 +1,33 @@
 #include "firmwareflashworker.h"
 
-FirmwareFlashWorker::FirmwareFlashWorker(QObject *parent) : QObject(parent){}
-
-FirmwareFlashWorker::FirmwareFlashWorker(const QString & port, const QStringList & firmwareBuffer)
+FirmwareFlashWorker::FirmwareFlashWorker(const QString & port, const QStringList & firmwareBuffer) : CommonResources(port)
 {
-    this -> portName = new QString(port);
-
     this -> firmwareBuffer = new QStringList(firmwareBuffer);
 }
 
 FirmwareFlashWorker::~FirmwareFlashWorker()
 {
-    if(portName != nullptr)
-    {
-        delete portName;
-    }
     if(firmwareBuffer != nullptr)
     {
         delete firmwareBuffer;
     }
-    if (serialPort != nullptr)
+    if(payload != nullptr)
     {
-        if(serialPort->isOpen())
-        {
-            serialPort->clear();
+        delete payload;
 
-            serialPort->close();
-        }
-        delete serialPort;
+        payload = nullptr;
+    }
+    if(address != nullptr)
+    {
+        delete address;
+
+        address = nullptr;
     }
 }
 
 void FirmwareFlashWorker::run()
 {
-    serialPort = new QSerialPort(*portName);
-
-    serialPort -> setBaudRate(115200);
-
-    serialPort -> setDataBits(QSerialPort::Data8);
-
-    serialPort -> setParity(QSerialPort::EvenParity);
-
-    serialPort -> setStopBits(QSerialPort::OneStop);
-
-    serialPort -> setFlowControl(QSerialPort::NoFlowControl);
-
-    connect(serialPort, &QSerialPort::errorOccurred, this, &FirmwareFlashWorker::errorHandler);
+    initPort();
 
     if (serialPort -> open(QIODevice::ReadWrite))
     {
@@ -61,7 +43,7 @@ void FirmwareFlashWorker::run()
 
                 addressOffSet += 0x08000000;
 
-                QByteArray * address = new QByteArray();
+                address = new QByteArray();
 
                 address->append((addressOffSet >> 24) & 0xFF);
                 address->append((addressOffSet >> 16) & 0xff);
@@ -70,7 +52,7 @@ void FirmwareFlashWorker::run()
 
                 address->append(address->at(0)^address->at(1)^address->at(2)^address->at(3));
 
-                QByteArray * payload = new QByteArray();
+                payload = new QByteArray();
 
                 payload->append(payloadLenght - 1);
 
@@ -86,130 +68,65 @@ void FirmwareFlashWorker::run()
 
                     payload->append(buff);
                 }
-
                 payload->append(crcAcc);
 
-                serialPort->write(writeCommand, 2);
-
-                serialPort->flush();
-
-                if(checkAck(15)){                                              // Empirically defined answer delay
-
-                    serialPort->write(*address);
-
-                    serialPort->flush();
-
-                    if(address != nullptr)
-                    {
-                        delete address;
-
-                        address = nullptr;
-                    }
-
-                    if(checkAck(60)){                                          // Empirically defined answer delay
-
-                        serialPort->write(*payload);
-
-                        serialPort->flush();
-
-                        if(payload!=nullptr)
+                if(write(writeCommand, 2) == 0)
+                {
+                    if(checkAck(15))
+                    {                                              // Empirically defined answer delay
+                        if(write(*address) == 0)
                         {
-                            delete payload;
+                            if(address != nullptr)
+                            {
+                                delete address;
 
-                            payload = nullptr;
-                        }
-                        if(checkAck(750)){                                     // Empirically defined answer delay
+                                address = nullptr;
+                            }
+                            if(checkAck(60))
+                            {                                          // Empirically defined answer delay
+                                if(write(*payload) == 0)
+                                {
+                                    if(payload!=nullptr)
+                                    {
+                                        delete payload;
 
-                            emit progressValue(static_cast<float>(i)/static_cast<float>(firmwareBuffer->length()));
+                                        payload = nullptr;
+                                    }
+                                    if(checkAck(750))                  // Empirically defined answer delay
+                                    {
+                                        emit progressValue(static_cast<float>(i)/static_cast<float>(firmwareBuffer->length()));
 
+                                    } else {
+
+                                        reportError("Write payload error");
+                                    }
+                                } else {
+
+                                    reportError("Write payload error");
+                                }
+                            } else {
+
+                                reportError("Write address error");
+                            }
                         } else {
 
-                            status = "Write payload error";
-
-                            break;
+                            reportError("Write address error");
                         }
                     } else {
 
-                        status = "Write address error";
-
-                        break;
+                        reportError("Write command error 1");
                     }
                 } else {
 
-                    if(payload!=nullptr)
-                    {
-                        delete payload;
-
-                        payload = nullptr;
-                    }
-                    if(address!=nullptr)
-                    {
-                        delete address;
-
-                        address = nullptr;
-                    }
-                    status = "Write command error";
-
-                    break;
+                    reportError("Write command error 2");
                 }
             }
         }
     } else {
 
-        status = "error";
+        executionStatus = "error";
     }
     closePort();
 
-    emit finished(status);
-}
-
-void FirmwareFlashWorker::stop()
-{
-    interrupted = true;
-}
-
-void FirmwareFlashWorker::errorHandler(QSerialPort::SerialPortError error)
-{
-    if(error != QSerialPort::NoError)
-    {
-        closePort();
-    }
-}
-
-bool FirmwareFlashWorker::checkAck(int timeout)
-{
-    char buff;
-
-    if(serialPort->waitForReadyRead(timeout))
-    {
-        serialPort->read(&buff, 1);
-
-        if(buff == 0x79)
-        {
-            return true;
-
-        } else {
-
-            return false;
-        }
-    } else {
-
-        return false;
-    }
-}
-
-void FirmwareFlashWorker::closePort()
-{
-    if (serialPort!=nullptr){
-
-        if(serialPort->isOpen()){
-
-            serialPort->clear();
-
-            serialPort->close();
-        }
-        delete serialPort;
-
-        serialPort = nullptr;
-    }
+    emit finished(executionStatus);
 }

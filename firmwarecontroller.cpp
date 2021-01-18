@@ -13,21 +13,31 @@ FirmwareController::FirmwareController(QObject *parent) : QObject(parent)
 
 FirmwareController::~FirmwareController()
 {
-    if(checkConnectTimer!=nullptr){
+    if(checkConnectTimer != nullptr){
 
         checkConnectTimer->stop();
 
         delete checkConnectTimer;
     }
-    if (serialPort!=nullptr)
+    if (serialPort != nullptr)
     {
         serialPort->close();
 
         delete serialPort;
     }
-    if (firmwareBuffer!=nullptr)
+    if (firmwareBuffer != nullptr)
     {
         delete firmwareBuffer;
+    }
+    if (thread != nullptr)
+    {
+        thread->quit();
+
+        thread->wait();
+
+        thread->deleteLater();
+
+        delete thread;
     }
 }
 
@@ -64,8 +74,8 @@ int FirmwareController::openPort(const QString &portName)
 
         serialPort->flush();
 
-        if (checkAck(1)){      // Empirically defined answer delay
-
+        if (checkAck(1))         // Empirically defined answer delay
+        {
             setConnectionStatus("Connected");
 
             checkConnectTimer->start();
@@ -114,14 +124,14 @@ void FirmwareController::closePort(const QString & closeStatus)
 
     setConnectionStatus(closeStatus);
 
-    if(checkConnectTimer->isActive()){
-
+    if(checkConnectTimer->isActive())
+    {
         checkConnectTimer->stop();
     }
-    if(serialPort != nullptr) {
-
-        if(serialPort->isOpen()){
-
+    if(serialPort != nullptr)
+    {
+        if(serialPort->isOpen())
+        {
             serialPort->close();
         }
         delete serialPort;
@@ -134,8 +144,6 @@ void FirmwareController::portError(QSerialPort::SerialPortError error)
 {
     if(error != QSerialPort::NoError)
     {
-        qDebug() << error;
-
         closePort("Target device connection error");
     }
 }
@@ -212,69 +220,89 @@ void FirmwareController::backUpFirmware(const QString & pathToBackUp)
 {
     checkConnectTimer->stop();
 
-//    serialPort->flush();
+    if (serialPort!=nullptr)
+    {
+        if(serialPort->isOpen())
+        {
+            serialPort->clear();
 
-    serialPort->clear();
+            serialPort->close();
+        }
 
-    serialPort->close();
+        backUpWorker = new FirmwareBackUpWorker(serialPort->portName(), pathToBackUp);
 
-    backUpWorker = new FirmwareBackUpWorker(serialPort->portName(), pathToBackUp);
+        if(thread != nullptr)
+        {
+            thread->quit();
 
-    if(thread != nullptr){
+            thread->wait();
 
-        delete thread;
+            thread->deleteLater();
+
+            thread = nullptr;
+        }
+        thread = new QThread( );
+
+        connect(thread, &QThread::started, backUpWorker, &FirmwareBackUpWorker::run);
+
+        connect(backUpWorker, &FirmwareBackUpWorker::progressValue, this, &FirmwareController::setProgress);
+
+        connect(backUpWorker, &FirmwareBackUpWorker::finished, backUpWorker, &QObject::deleteLater);
+
+        connect(backUpWorker, &FirmwareBackUpWorker::finished, this, &FirmwareController::backUpFirmwareHasFinished);
+
+        backUpWorker->moveToThread(thread);
+
+        thread->start();
+
+    } else{
+
+        closePort("Target device connection loss");
     }
-    thread = new QThread( );
-
-    connect(thread, &QThread::started, backUpWorker, &FirmwareBackUpWorker::run);
-
-    connect(backUpWorker, &FirmwareBackUpWorker::progressValue, this, &FirmwareController::setProgress);
-
-    connect(backUpWorker, &FirmwareBackUpWorker::finished, backUpWorker, &QObject::deleteLater);
-
-    connect(backUpWorker, &FirmwareBackUpWorker::finished, this, &FirmwareController::workWithFirmwareHasFinished);
-
-    backUpWorker->moveToThread(thread);
-
-    thread->start();
 }
 
 void FirmwareController::flashFirmware()
 {
-    clearMCUFlash();
+    if (serialPort!=nullptr)
+    {
+        clearMCUFlash();
 
-    checkConnectTimer->stop();
+        checkConnectTimer->stop();
 
-//    serialPort->flush();
+        serialPort->clear();
 
-    serialPort->clear();
+        serialPort->close();
 
-    serialPort->close();
+        flashWorker = new FirmwareFlashWorker(serialPort->portName(), *firmwareBuffer);
 
-    flashWorker = new FirmwareFlashWorker(serialPort->portName(), *firmwareBuffer);
-
-    if(thread != nullptr){
-
-        if(thread->isRunning()){
+        if(thread != nullptr){
 
             thread->quit();
+
+            thread->wait();
+
+            thread->deleteLater();
+
+            thread = nullptr;
         }
+        thread = new QThread();
 
-        delete thread;
+        connect(thread, &QThread::started, flashWorker, &FirmwareFlashWorker::run);
+
+        connect(flashWorker, &FirmwareFlashWorker::progressValue, this, &FirmwareController::setProgress);
+
+        connect(flashWorker, &FirmwareFlashWorker::finished, flashWorker, &QObject::deleteLater);
+
+        connect(flashWorker, &FirmwareFlashWorker::finished, this, &FirmwareController::flashFirmwareHasFinished);
+
+        flashWorker->moveToThread(thread);
+
+        thread->start();
+
+    } else {
+
+        closePort("Target device connection loss");
     }
-    thread = new QThread( );
-
-    connect(thread, &QThread::started, flashWorker, &FirmwareFlashWorker::run);
-
-    connect(flashWorker, &FirmwareFlashWorker::progressValue, this, &FirmwareController::setProgress);
-
-    connect(flashWorker, &FirmwareFlashWorker::finished, flashWorker, &QObject::deleteLater);
-
-    connect(flashWorker, &FirmwareFlashWorker::finished, this, &FirmwareController::workWithFirmwareHasFinished);
-
-    flashWorker->moveToThread(thread);
-
-    thread->start();
 }
 
 void FirmwareController::clearMCUFlash()
@@ -301,6 +329,8 @@ void FirmwareController::clearMCUFlash()
 
         } else {
 
+            qDebug()<<"enter mCUMemoryClearError";
+
             emit mCUMemoryClearError();
 
             closePort("Firmware space wiping error");
@@ -313,6 +343,15 @@ void FirmwareController::clearMCUFlash()
     }
 }
 
+bool FirmwareController::isPosibleToFlash()
+{
+    if(firmwareBuffer!=nullptr)
+    {
+        return true;
+    }
+    return false;
+}
+
 void FirmwareController::readMCUID()
 {
     serialPort->clear();
@@ -321,16 +360,16 @@ void FirmwareController::readMCUID()
 
     serialPort->flush();
 
-    if(checkAck(10)){
-
+    if(checkAck(10))
+    {
         char * buff = new char[4];
 
         for(int i = 0; i<4; i++){
 
-            if(serialPort->read(&buff[i], 1)!=1){
-
-                if(serialPort->waitForReadyRead(5)){
-
+            if(serialPort->read(&buff[i], 1)!=1)
+            {
+                if(serialPort->waitForReadyRead(5))
+                {
                     serialPort->read(&buff[i], 1);
 
                 } else{
@@ -345,10 +384,11 @@ void FirmwareController::readMCUID()
              (buff[3] == 'y' )))
         {
             closePort("Target device connection loss");
+
+        } else {
+
+            setConnectionStatus("Connected");
         }
-
-        qDebug() << hex << QString(buff);
-
         delete [] buff;
 
     } else {
@@ -372,7 +412,7 @@ void FirmwareController::setConnectionStatus(const QString &value)
     }
 }
 
-void FirmwareController::workWithFirmwareHasFinished(const QString & errorStatus)
+void FirmwareController::flashFirmwareHasFinished(const QString & errorStatus)
 {
     if(errorStatus=="w/o error"){
 
@@ -384,25 +424,60 @@ void FirmwareController::workWithFirmwareHasFinished(const QString & errorStatus
 
         } else {
 
+            setConnectionStatus("Firmware flash error");
+
             emit firmwareFlashError();
         }
     } else {
 
+        setConnectionStatus("Firmware flash error");
+
         emit firmwareFlashError();
     }
+    if(thread != nullptr)
+    {
+        thread->quit();
 
-//    thread->wait(100);
+        thread->wait();
 
-//    if(thread != nullptr)
-//    {
-//        if(thread->isRunning())
-//        {
-//            thread->terminate();
-//        }
-//        delete thread;
+        thread->deleteLater();
 
-//        thread = nullptr;
-//    }
+        thread = nullptr;
+    }
+}
+
+void FirmwareController::backUpFirmwareHasFinished(const QString & errorStatus)
+{
+    if(errorStatus=="w/o error")
+    {
+        if(serialPort->open(QIODevice::ReadWrite))
+        {
+            checkConnectTimer->start();
+
+            emit firmwareBackUpSucces();
+
+        } else {
+
+            setConnectionStatus("Firmware backup error");
+
+            emit firmwareBackUpError();
+        }
+    } else {
+
+        setConnectionStatus("Firmware backup error");
+
+        emit firmwareBackUpError();
+    }
+    if(thread != nullptr)
+    {
+        thread->quit();
+
+        thread->wait();
+
+        thread->deleteLater();
+
+        thread = nullptr;
+    }
 }
 
 float FirmwareController::getProgress() const

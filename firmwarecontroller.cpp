@@ -107,15 +107,9 @@ bool FirmwareController::checkAck(int timeout)
         if(buff == 0x79)
         {
             return true;
-
-        } else {
-
-            return false;
         }
-    } else {
-
-        return false;
     }
+    return false;
 }
 
 void FirmwareController::closePort(const QString & closeStatus)
@@ -194,10 +188,10 @@ void FirmwareController::readFirmwareFile(const QString &pathToFile)
         if((firmwareBuffer->at(0)==":020000040800F2")&&
            (firmwareBuffer->at(firmwareBuffer->length()-1)==":00000001FF"))
         {
-            firmwareBuffer->removeAt(0);
+            if(firmwareBuffer->at(firmwareBuffer->length()-2).startsWith(":04000005")){
 
-            firmwareBuffer->removeAt(firmwareBuffer->length()-2);
-
+                firmwareBuffer->removeAt(firmwareBuffer->length()-2);
+            }
             firmwareBuffer->removeAt(firmwareBuffer->length()-1);
 
             emit firmwareReadSucces();

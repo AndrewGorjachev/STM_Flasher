@@ -14,6 +14,8 @@ class FirmwareFlashWorker :  public CommonResources
 
 private:
 
+    int globalAddressOffSet      = 0x08000000;
+
     QByteArray * address         = nullptr;
 
     QByteArray * payload         = nullptr;

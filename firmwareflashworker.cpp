@@ -43,8 +43,6 @@ void FirmwareFlashWorker::run()
 
                     globalAddressOffSet = (globalAddressOffSet << 16);
 
-                    qDebug() << hex << globalAddressOffSet;
-
                 } else {
 
                     int payloadLenght = s->mid(1,2).toInt(nullptr, 16);
@@ -52,8 +50,6 @@ void FirmwareFlashWorker::run()
                     int addressOffSet = s->mid(3,4).toInt(nullptr, 16);
 
                     addressOffSet += globalAddressOffSet;
-
-                    qDebug() << hex << addressOffSet;
 
                     address = new QByteArray();
 
